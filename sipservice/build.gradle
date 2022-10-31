@@ -6,9 +6,9 @@ android {
 
     defaultConfig {
         minSdkVersion 21
-        targetSdkVersion 29
-        versionCode 22
-        versionName "2.7.0"
+        targetSdkVersion 30
+        versionCode 24
+        versionName "2.8.1"
     }
     buildTypes {
         release {
@@ -20,6 +20,6 @@ android {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    implementation 'com.google.code.gson:gson:2.8.6'
+    implementation 'com.google.code.gson:gson:2.9.0'
     implementation "com.github.voismart:crypto:0.1.0"
 }

@@ -34,7 +34,8 @@ public class BroadcastEventEmitter implements SipServiceConstants {
         MISSED_CALL,
         VIDEO_SIZE,
         CALL_STATS,
-        CALL_RECONNECTION_STATE
+        CALL_RECONNECTION_STATE,
+        SILENT_CALL_STATUS
     }
 
     public BroadcastEventEmitter(Context context) {
@@ -198,10 +199,17 @@ public class BroadcastEventEmitter implements SipServiceConstants {
         mContext.sendBroadcast(intent);
     }
 
-    private boolean sendExplicitBroadcast(Intent intent) {
+    void silentCallStatus(boolean status, String number) {
+        final Intent intent = new Intent();
+        intent.setAction(getAction(BroadcastAction.SILENT_CALL_STATUS));
+        intent.putExtra(PARAM_SILENT_CALL_STATUS, status);
+        intent.putExtra(PARAM_NUMBER, number);
+        sendExplicitBroadcast(intent);
+    }
+
+    private void sendExplicitBroadcast(Intent intent) {
         PackageManager pm=mContext.getPackageManager();
         List<ResolveInfo> matches=pm.queryBroadcastReceivers(intent, 0);
-        boolean sent = false;
 
         for (ResolveInfo resolveInfo : matches) {
             ComponentName cn=
@@ -210,9 +218,8 @@ public class BroadcastEventEmitter implements SipServiceConstants {
 
             intent.setComponent(cn);
             intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
-            mContext.sendBroadcast(intent);
-            sent = true;
         }
-        return sent;
+
+        mContext.sendBroadcast(intent);
     }
 }

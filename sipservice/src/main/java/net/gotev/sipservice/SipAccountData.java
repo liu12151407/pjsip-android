@@ -1,5 +1,7 @@
 package net.gotev.sipservice;
 
+import static net.gotev.sipservice.SipServiceConstants.DEFAULT_SIP_PORT;
+
 import android.os.Parcel;
 import android.os.Parcelable;
 
@@ -7,6 +9,7 @@ import org.pjsip.pjsua2.AccountConfig;
 import org.pjsip.pjsua2.AuthCredInfo;
 import org.pjsip.pjsua2.pj_constants_;
 import org.pjsip.pjsua2.pj_qos_type;
+import org.pjsip.pjsua2.pjmedia_srtp_use;
 
 import java.util.Objects;
 
@@ -24,13 +27,16 @@ public class SipAccountData implements Parcelable {
     private String password;
     private String realm;
     private String host;
-    private long port = 5060;
+    private long port = DEFAULT_SIP_PORT;
     private boolean tcpTransport = false;
     private String authenticationType = AUTH_TYPE_DIGEST;
     private String contactUriParams = "";
     private int regExpirationTimeout = 300;     // 300s
     private String guestDisplayName = "";
     private String callId = "";
+    private int srtpUse = pjmedia_srtp_use.PJMEDIA_SRTP_OPTIONAL;
+    private int srtpSecureSignalling = 0; // not required
+    private SipAccountTransport transport = SipAccountTransport.UDP;
 
     public SipAccountData() { }
 
@@ -61,6 +67,9 @@ public class SipAccountData implements Parcelable {
         parcel.writeInt(regExpirationTimeout);
         parcel.writeString(guestDisplayName);
         parcel.writeString(callId);
+        parcel.writeInt(srtpUse);
+        parcel.writeInt(srtpSecureSignalling);
+        parcel.writeInt(transport.ordinal());
     }
 
     private SipAccountData(Parcel in) {
@@ -75,6 +84,9 @@ public class SipAccountData implements Parcelable {
         regExpirationTimeout = in.readInt();
         guestDisplayName = in.readString();
         callId = in.readString();
+        srtpUse = in.readInt();
+        srtpSecureSignalling = in.readInt();
+        transport = SipAccountTransport.getTransportByCode(in.readInt());
     }
 
     @Override
@@ -129,12 +141,31 @@ public class SipAccountData implements Parcelable {
         return this;
     }
 
+    /**
+     * use {@link SipAccountData#getTransport() instead}
+     */
+    @Deprecated
     public boolean isTcpTransport() {
         return tcpTransport;
     }
 
+    /**
+     * use {@link SipAccountData#setTransport(SipAccountTransport)} () instead}
+     */
+    @Deprecated
     public SipAccountData setTcpTransport(boolean tcpTransport) {
         this.tcpTransport = tcpTransport;
+        // For backward compatibility
+        transport = tcpTransport ? SipAccountTransport.TCP : SipAccountTransport.UDP;
+        return this;
+    }
+
+    public SipAccountTransport getTransport() {
+        return transport;
+    }
+
+    public SipAccountData setTransport(SipAccountTransport transport) {
+        this.transport = transport;
         return this;
     }
 
@@ -182,6 +213,24 @@ public class SipAccountData implements Parcelable {
         this.callId = callId;
         return this;
     }
+
+    public int getSrtpUse() {
+        return srtpUse;
+    }
+
+    public SipAccountData setSrtpUse(int srtpUse) {
+        this.srtpUse = srtpUse;
+        return this;
+    }
+
+    public int getSrtpSecureSignalling() {
+        return srtpSecureSignalling;
+    }
+
+    public SipAccountData setSrtpSecureSignalling(int srtpSecureSignalling) {
+        this.srtpSecureSignalling = srtpSecureSignalling;
+        return this;
+    }
     /*          Getters and Setters end        */
 
     /*****          Utilities        ******/
@@ -198,19 +247,20 @@ public class SipAccountData implements Parcelable {
     }
 
     String getProxyUri() {
-        StringBuilder proxyUri = new StringBuilder();
-
-        proxyUri.append("sip:").append(host).append(":").append(port);
-
-        if (tcpTransport) {
-            proxyUri.append(";transport=tcp");
-        }
-
-        return proxyUri.toString();
+        return "sip:" + host + ":" + port + getTransportString();
     }
 
     String getRegistrarUri() {
         return "sip:" + host + ":" + port;
+    }
+
+    String getTransportString() {
+        switch (transport) {
+            case TCP: return ";transport=tcp";
+            case TLS: return ";transport=tls";
+            case UDP:
+            default: return "";
+        }
     }
 
     public boolean isValid() {
@@ -232,18 +282,20 @@ public class SipAccountData implements Parcelable {
         }
         accountConfig.getRegConfig().setRegistrarUri(getRegistrarUri());
         accountConfig.getRegConfig().setTimeoutSec(regExpirationTimeout);
+        accountConfig.getRegConfig().setContactUriParams(contactUriParams);
 
         // account sip stuff configs
         accountConfig.getSipConfig().getAuthCreds().add(getAuthCredInfo());
         accountConfig.getSipConfig().getProxies().add(getProxyUri());
-        accountConfig.getSipConfig().setContactUriParams(contactUriParams);
 
         // nat configs to allow call reconnection across networks
         accountConfig.getNatConfig().setSdpNatRewriteUse(pj_constants_.PJ_TRUE);
         accountConfig.getNatConfig().setViaRewriteUse(pj_constants_.PJ_TRUE);
 
-        // account media  stuff configs
+        // account media configs
         accountConfig.getMediaConfig().getTransportConfig().setQosType(pj_qos_type.PJ_QOS_TYPE_VOICE);
+        accountConfig.getMediaConfig().setSrtpUse(srtpUse);
+        accountConfig.getMediaConfig().setSrtpSecureSignaling(srtpSecureSignalling);
         setVideoConfig(accountConfig);
 
         return accountConfig;
@@ -287,6 +339,9 @@ public class SipAccountData implements Parcelable {
         if (!Objects.equals(contactUriParams, that.contactUriParams)) return false;
         if (regExpirationTimeout != that.regExpirationTimeout) return false;
         if (!Objects.equals(callId, that.callId)) return false;
+        if (srtpUse != that.srtpUse) return false;
+        if (srtpSecureSignalling != that.srtpSecureSignalling) return false;
+        if (!Objects.equals(transport, that.transport)) return false;
 
         return getIdUri().equals(that.getIdUri());
 
@@ -303,6 +358,9 @@ public class SipAccountData implements Parcelable {
         result = 31 * result + contactUriParams.hashCode();
         result = 31 * result + regExpirationTimeout;
         result = 31 * result + callId.hashCode();
+        result = 31 * result + srtpUse;
+        result = 31 * result + srtpSecureSignalling;
+        result = 31 * result + transport.hashCode();
         return result;
     }
 

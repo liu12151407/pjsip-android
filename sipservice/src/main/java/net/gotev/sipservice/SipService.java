@@ -1,5 +1,8 @@
 package net.gotev.sipservice;
 
+import static net.gotev.sipservice.ObfuscationHelper.getValue;
+import static net.gotev.sipservice.SipServiceCommand.AGENT_NAME;
+
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -32,9 +35,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static net.gotev.sipservice.ObfuscationHelper.getValue;
-import static net.gotev.sipservice.SipServiceCommand.AGENT_NAME;
 
 /**
  * Sip Service.
@@ -177,6 +177,9 @@ public class SipService extends BackgroundService implements SipServiceConstants
                     break;
                 case ACTION_RECONNECT_CALL:
                     handleReconnectCall();
+                    break;
+                case ACTION_MAKE_SILENT_CALL:
+                    handleMakeSilentCall(intent);
                     break;
                 default: break;
             }
@@ -605,7 +608,7 @@ public class SipService extends BackgroundService implements SipServiceConstants
             SipAccountData sipAccountData = new SipAccountData()
                     .setHost(sipServer != null ? sipServer : uri.getHost())
                     .setUsername(name)
-                    .setPort((uri.getPort() > 0) ? uri.getPort() : 5060)
+                    .setPort((uri.getPort() > 0) ? uri.getPort() : DEFAULT_SIP_PORT)
                     .setRealm(uri.getHost());
             /* display name not yet implemented server side for direct calls */
             /* .setUsername("guest") */
@@ -628,6 +631,20 @@ public class SipService extends BackgroundService implements SipServiceConstants
         } catch (Exception ex) {
             Logger.error(TAG, "Error while making a direct call as Guest", ex);
             mBroadcastEmitter.outgoingCall(accountID, -1, uri.getUserInfo(), false, false, false);
+        }
+    }
+
+    private void handleMakeSilentCall(Intent intent) {
+        String accountID = intent.getStringExtra(PARAM_ACCOUNT_ID);
+        String number = intent.getStringExtra(PARAM_NUMBER);
+
+        Logger.debug(TAG, "Making silent call to " + getValue(getApplicationContext(), number));
+
+        try {
+            mBroadcastEmitter.silentCallStatus(mActiveSipAccounts.get(accountID).addOutgoingCall(number) != null, number);
+        } catch (Exception exc) {
+            mBroadcastEmitter.silentCallStatus(false, number);
+            Logger.error(TAG, "Error while making silent call", exc);
         }
     }
 
@@ -838,25 +855,31 @@ public class SipService extends BackgroundService implements SipServiceConstants
             epConfig.getMedConfig().setEcOptions(1);
             epConfig.getMedConfig().setEcTailLen(200);
             epConfig.getMedConfig().setThreadCnt(2);
+            SipServiceUtils.setSipLogger(epConfig);
             mEndpoint.libInit(epConfig);
 
             TransportConfig udpTransport = new TransportConfig();
             udpTransport.setQosType(pj_qos_type.PJ_QOS_TYPE_VOICE);
             TransportConfig tcpTransport = new TransportConfig();
             tcpTransport.setQosType(pj_qos_type.PJ_QOS_TYPE_VOICE);
+            TransportConfig tlsTransport = new TransportConfig();
+            tlsTransport.setQosType(pj_qos_type.PJ_QOS_TYPE_VOICE);
 
             mEndpoint.transportCreate(pjsip_transport_type_e.PJSIP_TRANSPORT_UDP, udpTransport);
             mEndpoint.transportCreate(pjsip_transport_type_e.PJSIP_TRANSPORT_TCP, tcpTransport);
+            mEndpoint.transportCreate(pjsip_transport_type_e.PJSIP_TRANSPORT_TLS, tlsTransport);
             mEndpoint.libStart();
 
             ArrayList<CodecPriority> codecPriorities = getConfiguredCodecPriorities();
             if (codecPriorities != null) {
                 Logger.debug(TAG, "Setting saved codec priorities...");
+                StringBuilder log = new StringBuilder();
+                log.append("Saved codec priorities set:\n");
                 for (CodecPriority codecPriority : codecPriorities) {
-                    Logger.debug(TAG, "Setting " + codecPriority.getCodecId() + " priority to " + codecPriority.getPriority());
                     mEndpoint.codecSetPriority(codecPriority.getCodecId(), (short) codecPriority.getPriority());
+                    log.append(codecPriority).append(",");
                 }
-                Logger.debug(TAG, "Saved codec priorities set!");
+                Logger.debug(TAG, log.toString());
             } else {
                 mEndpoint.codecSetPriority("OPUS", (short) (CodecPriority.PRIORITY_MAX - 1));
                 mEndpoint.codecSetPriority("PCMA/8000", (short) (CodecPriority.PRIORITY_MAX - 2));
@@ -870,6 +893,9 @@ public class SipService extends BackgroundService implements SipServiceConstants
                 mEndpoint.codecSetPriority("G7221/16000", (short) CodecPriority.PRIORITY_DISABLED);
                 mEndpoint.codecSetPriority("G7221/32000", (short) CodecPriority.PRIORITY_DISABLED);
                 mEndpoint.codecSetPriority("ilbc/8000", (short) CodecPriority.PRIORITY_DISABLED);
+                mEndpoint.codecSetPriority("AMR-WB/16000", (short) CodecPriority.PRIORITY_DISABLED);
+                mEndpoint.codecSetPriority("AMR/8000", (short) CodecPriority.PRIORITY_DISABLED);
+                Logger.debug(TAG, "Default codec priorities set!");
             }
 
             // Set H264 Parameters
@@ -1004,7 +1030,7 @@ public class SipService extends BackgroundService implements SipServiceConstants
 
             for (CodecPriority codecPriority : codecPriorities) {
                 mEndpoint.codecSetPriority(codecPriority.getCodecId(), (short) codecPriority.getPriority());
-                log.append(codecPriority.toString()).append("\n");
+                log.append(codecPriority).append(",");
             }
 
             persistConfiguredCodecPriorities(codecPriorities);

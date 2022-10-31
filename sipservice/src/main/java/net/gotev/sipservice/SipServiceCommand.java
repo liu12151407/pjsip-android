@@ -2,8 +2,11 @@ package net.gotev.sipservice;
 
 import android.content.Context;
 import android.content.Intent;
+import android.hardware.camera2.CameraManager;
 import android.net.Uri;
 import android.view.Surface;
+
+import org.pjsip.PjCameraInfo2;
 
 import java.util.ArrayList;
 
@@ -19,6 +22,13 @@ public class SipServiceCommand implements SipServiceConstants {
      * to reflect app version/name/... or whatever might be useful for debugging
      */
     public static String AGENT_NAME = "AndroidSipService";
+
+    /**
+     * Enables pjsip logging (valid only for debug builds)
+     */
+    public static void enableSipDebugLogging(boolean enable) {
+        SipServiceUtils.ENABLE_SIP_LOGGING = enable;
+    }
 
     /**
      * Adds a new SIP account.
@@ -157,6 +167,26 @@ public class SipServiceCommand implements SipServiceConstants {
 
     public static void makeCall(Context context, String accountID, String numberToCall, boolean isTransfer) {
         makeCall(context, accountID, numberToCall, false, false, isTransfer);
+    }
+
+    /**
+     * Makes a silent call, i.e. the outgoing call event is sent through broadcast
+     * {@link BroadcastEventEmitter#silentCallStatus(boolean, String)}
+     * Instead of {@link BroadcastEventEmitter#outgoingCall(String, int, String, boolean, boolean, boolean)}
+     * Useful when the calls only enables/disables features/services on the pbx via feature codes
+     * E.g. enable dnd, join/leave queue, ...
+     * @param context application context
+     * @param accountID account ID used to make the call
+     * @param numberToCall number to call
+     */
+    public static void makeSilentCall(Context context, String accountID, String numberToCall) {
+        checkAccount(accountID);
+
+        Intent intent = new Intent(context, SipService.class);
+        intent.setAction(ACTION_MAKE_SILENT_CALL);
+        intent.putExtra(PARAM_ACCOUNT_ID, accountID);
+        intent.putExtra(PARAM_NUMBER, numberToCall);
+        context.startService(intent);
     }
 
     /**
@@ -447,7 +477,7 @@ public class SipServiceCommand implements SipServiceConstants {
     }
 
     private static void checkAccount(String accountID) {
-        if (accountID == null || accountID.isEmpty() || !accountID.startsWith("sip:")) {
+        if (accountID == null || !accountID.startsWith("sip:")) {
             throw new IllegalArgumentException("Invalid accountID! Example: sip:user@domain");
         }
     }
@@ -616,5 +646,14 @@ public class SipServiceCommand implements SipServiceConstants {
         Intent intent = new Intent(context, SipService.class);
         intent.setAction(ACTION_RECONNECT_CALL);
         context.startService(intent);
+    }
+
+    /**
+     * Sets the camera manager within the PjCamera2Info class
+     * it is used to enumerate the video devices without the CAMERA permission
+     * @param cm CameraManager retrieved with {@link Context#getSystemService(String)}}
+     */
+    public static void setCameraManager(CameraManager cm) {
+        PjCameraInfo2.SetCameraManager(cm);
     }
 }

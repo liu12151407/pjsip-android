@@ -91,6 +91,13 @@ public class BroadcastEventReceiver extends BroadcastReceiver implements SipServ
 
         } else if (BroadcastEventEmitter.getAction(BroadcastEventEmitter.BroadcastAction.CALL_RECONNECTION_STATE).equals(action)) {
             onCallReconnectionState((CallReconnectionState) intent.getSerializableExtra(PARAM_CALL_RECONNECTION_STATE));
+
+        } else if (BroadcastEventEmitter.getAction(BroadcastEventEmitter.BroadcastAction.SILENT_CALL_STATUS).equals(action)) {
+            onSilentCallStatus(
+                    intent.getBooleanExtra(PARAM_SILENT_CALL_STATUS, false),
+                    intent.getStringExtra(PARAM_NUMBER)
+            );
+
         }
     }
 
@@ -131,6 +138,8 @@ public class BroadcastEventReceiver extends BroadcastReceiver implements SipServ
                 BroadcastEventEmitter.BroadcastAction.CALL_STATS));
         intentFilter.addAction(BroadcastEventEmitter.getAction(
                 BroadcastEventEmitter.BroadcastAction.CALL_RECONNECTION_STATE));
+        intentFilter.addAction(BroadcastEventEmitter.getAction(
+                BroadcastEventEmitter.BroadcastAction.SILENT_CALL_STATUS));
         context.registerReceiver(this, intentFilter);
     }
 
@@ -165,7 +174,7 @@ public class BroadcastEventReceiver extends BroadcastReceiver implements SipServ
     }
 
     public void onCallMediaState(String accountID, int callID, MediaState stateType, boolean stateValue) {
-        Logger.debug(LOG_TAG, "onCallState - accountID: " + getValue(getReceiverContext(), accountID) +
+        Logger.debug(LOG_TAG, "onCallMediaState - accountID: " + getValue(getReceiverContext(), accountID) +
                 ", callID: " + callID +
                 ", mediaStateType: " + stateType.name() +
                 ", mediaStateValue: " + stateValue);
@@ -174,7 +183,7 @@ public class BroadcastEventReceiver extends BroadcastReceiver implements SipServ
     public void onOutgoingCall(String accountID, int callID, String number, boolean isVideo, boolean isVideoConference, boolean isTransfer) {
         Logger.debug(LOG_TAG, "onOutgoingCall - accountID: " + getValue(getReceiverContext(), accountID) +
                 ", callID: " + callID +
-                ", number: " + number);
+                ", number: " + getValue(getReceiverContext(), number));
     }
 
     public void onStackStatus(boolean started) {
@@ -206,5 +215,9 @@ public class BroadcastEventReceiver extends BroadcastReceiver implements SipServ
 
     protected void onCallReconnectionState(CallReconnectionState state) {
         Logger.debug(LOG_TAG, "Call reconnection state " + state.name());
+    }
+
+    protected void onSilentCallStatus(boolean success, String number) {
+        Logger.debug(LOG_TAG, "Success: " +success+ " for silent call: " +number);
     }
 }

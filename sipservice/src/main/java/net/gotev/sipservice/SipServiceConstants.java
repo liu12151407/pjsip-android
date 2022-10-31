@@ -35,6 +35,7 @@ public interface SipServiceConstants {
     String ACTION_SWITCH_VIDEO_CAPTURE_DEVICE = "switchVideoCaptureDevice";
     String ACTION_MAKE_DIRECT_CALL = "makeDirectCall";
     String ACTION_RECONNECT_CALL = "reconnectCall";
+    String ACTION_MAKE_SILENT_CALL = "makeSilentCall";
 
     /*
      * Generic Parameters
@@ -78,6 +79,7 @@ public interface SipServiceConstants {
     String PARAM_INCOMING_VIDEO_WIDTH = "incomingVideoWidth";
     String PARAM_INCOMING_VIDEO_HEIGHT = "incomingVideoHeight";
     String PARAM_CALL_RECONNECTION_STATE = "callReconnectionState";
+    String PARAM_SILENT_CALL_STATUS = "silentCallStatus";
 
     /**
      * Specific Parameters passed in the broadcast intents for call stats.
@@ -110,4 +112,9 @@ public interface SipServiceConstants {
      * Generic Constants
      */
     int DELAYED_JOB_DEFAULT_DELAY = 5000;
+
+    /**
+     * SIP DEFAULT PORTS
+     */
+    int DEFAULT_SIP_PORT = 5060;
 }
